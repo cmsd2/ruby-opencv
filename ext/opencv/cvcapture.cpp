@@ -17,6 +17,24 @@
 __NAMESPACE_BEGIN_OPENCV
 __NAMESPACE_BEGIN_CVCAPTURE
 
+cvcapture_wrapper::cvcapture_wrapper(CvCapture * __capture)
+  : capture(__capture)
+{
+}
+
+cvcapture_wrapper::~cvcapture_wrapper()
+{
+  release(); 
+}
+
+void cvcapture_wrapper::release()
+{
+  if(capture) {
+    cvcapture_release(&capture);
+  }
+}
+
+
 VALUE rb_klass;
 
 VALUE
@@ -65,6 +83,7 @@ define_ruby_class()
   
   rb_define_method(rb_klass, "grab", RUBY_METHOD_FUNC(rb_grab), 0);
   rb_define_method(rb_klass, "retrieve", RUBY_METHOD_FUNC(rb_retrieve), 0);
+  rb_define_method(rb_klass, "release", RUBY_METHOD_FUNC(rb_release), 0);
   rb_define_method(rb_klass, "query", RUBY_METHOD_FUNC(rb_query), 0);
   rb_define_method(rb_klass, "millisecond", RUBY_METHOD_FUNC(rb_get_millisecond), 0);
   rb_define_method(rb_klass, "millisecond=", RUBY_METHOD_FUNC(rb_set_millisecond), 1);
@@ -97,9 +116,36 @@ define_ruby_class()
 void
 cvcapture_free(void *ptr)
 { 
-  if (ptr)
-    cvReleaseCapture((CvCapture**)&ptr);
+  delete static_cast<cvcapture_wrapper *>(ptr);
 }
+
+void
+cvcapture_release(CvCapture **capture)
+{
+  cvReleaseCapture(capture);
+}
+
+/*
+ * call-seq:
+ *   release
+ *
+ * Releases memory and closes the connection to the camera device.
+ * Calling release more than once has no further effect.
+ * Do not call any other capture methods after calling release.
+ */
+VALUE
+rb_release(VALUE self)
+{
+  try {
+    CVCAPTURE_WRAPPER(self)->release();
+  }
+  catch (cv::Exception& e) {
+    raise_cverror(e);
+  }
+  return Qnil;
+}
+
+
 
 /*
  * call-seq:
@@ -148,7 +194,10 @@ rb_open(int argc, VALUE *argv, VALUE self)
   }
   if (!capture)
     rb_raise(rb_eStandardError, "Invalid capture format.");
-  return Data_Wrap_Struct(rb_klass, 0, cvcapture_free, capture);
+
+  cvcapture_wrapper *wrapper = new cvcapture_wrapper(capture);
+
+  return Data_Wrap_Struct(rb_klass, 0, cvcapture_free, wrapper);
 }
 
 

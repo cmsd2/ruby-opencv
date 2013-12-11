@@ -12,20 +12,31 @@
 
 #include "opencv.h"
 
-#define __NAMESPACE_BEGIN_CVCAPTURE namespace cCvCapture {
+#define __NAMESPACE_CVCAPTURE cCvCapture
+#define __NAMESPACE_BEGIN_CVCAPTURE namespace __NAMESPACE_CVCAPTURE {
 #define __NAMESPACE_END_CVCAPTURE }
 
 __NAMESPACE_BEGIN_OPENCV
 __NAMESPACE_BEGIN_CVCAPTURE
 
+struct cvcapture_wrapper {
+  cvcapture_wrapper(CvCapture *__capture);
+  ~cvcapture_wrapper();
+
+  void release();
+
+  CvCapture *capture;
+};
 
 VALUE rb_class();
 
 void define_ruby_class();
 
 void cvcapture_free(void *ptr);
+void cvcapture_release(CvCapture **ptr);
 VALUE rb_open(int argc, VALUE *argv, VALUE klass);
 
+VALUE rb_release(VALUE self);
 VALUE rb_grab(VALUE self);
 VALUE rb_retrieve(VALUE self);
 VALUE rb_query(VALUE self);
@@ -59,12 +70,19 @@ VALUE rb_get_rectification(VALUE self);
 
 __NAMESPACE_END_CVCAPTURE
 
+inline __NAMESPACE_CVCAPTURE::cvcapture_wrapper *
+CVCAPTURE_WRAPPER(VALUE object) {
+  using namespace __NAMESPACE_CVCAPTURE;
+  cvcapture_wrapper *ptr;
+  Data_Get_Struct(object, cvcapture_wrapper, ptr);
+  return ptr;
+}
 
 inline CvCapture*
 CVCAPTURE(VALUE object) {
-  CvCapture *ptr;
-  Data_Get_Struct(object, CvCapture, ptr);
-  return ptr;
+  using namespace __NAMESPACE_CVCAPTURE;
+  cvcapture_wrapper * wrapper = CVCAPTURE_WRAPPER(object);
+  return wrapper->capture;
 }
 
 __NAMESPACE_END_OPENCV
